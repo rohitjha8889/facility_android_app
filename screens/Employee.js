@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import {
   View,
   Text,
@@ -10,136 +10,196 @@ import {
   Alert,
 } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import SelectDropdown from "react-native-select-dropdown";
+import { DataContext } from "../Data/DataContext";
+import DateTimePicker from '@react-native-community/datetimepicker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const Employee = () => {
+const Employee = ({ route }) => {
+  const { fetchEmployees, employees, allClient, addAttendance, fetchFilteredAttendance, attendanceData } = useContext(DataContext);
+
+  const { selectedClient, selectedDesignation } = route.params;
+
+  function filterDataByHospitalAndService(hospitalName, service) {
+    return allClient.find(item => item.hospitalName === hospitalName && item.service === service);
+  }
+
+  const formatDate = (date) => {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are zero-based in JS
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+  };
+
+  
   const navigation = useNavigation();
   const [searchInput, setSearchInput] = useState("");
-  const [cardData, setCardData] = useState([
-    {
-      id: 1,
-      name: "sanny ranjan singh",
-      selectedItem: null,
-      selectedItemValue: "",
-    },
-    {
-      id: 2,
-      name: "Rohit kumar jha",
-      selectedItem: null,
-      selectedItemValue: "",
-    },
-    { id: 3, name: "siwam kumar", selectedItem: null, selectedItemValue: "" },
-    { id: 4, name: "Nitish kumar", selectedItem: null, selectedItemValue: "" },
-    { id: 5, name: "rahul kumar", selectedItem: null, selectedItemValue: "" },
-    { id: 6, name: "Sanny Ranjan", selectedItem: null, selectedItemValue: "" },
-    // Add more names here if needed
-  ]);
   const dropdownRefs = useRef([]);
+  const [cardData, setCardData] = useState([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [permissionOT, setPermissionOT] = useState('');
+  const [adminId, setAdminId] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const [currentDate, setCurrentDate] = useState("");
-  const [currentTime, setCurrentTime] = useState("");
 
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      const date = new Date();
-      const formattedDate = `${date.getDate()}-${
-        date.getMonth() + 1
-      }-${date.getFullYear()}`;
-      setCurrentDate(formattedDate);
+    fetchEmployees(selectedClient, selectedDesignation)
+      .then(() => setLoading(false)) // Set loading to false when fetching is complete
+      .catch(error => console.error("Error fetching employees: ", error));
+  }, [selectedClient, selectedDesignation]);
 
-      const hours = date.getHours();
-      const minutes = date.getMinutes();
-      const seconds = date.getSeconds();
-      const formattedTime = `${hours}:${minutes}:${seconds}`;
-      setCurrentTime(formattedTime);
-    }, 1000);
 
-    return () => clearInterval(intervalId);
-  }, []);
+  useEffect(() => {
+    if (!loading && employees.length > 0) {
+      setCardData(employees.map(employee => ({ ...employee, isSaved: false })));
+    }
+  }, [loading, employees]);
+
+
+
+  useEffect(() => {
+    if (!loading) {
+      fetchFilteredAttendance(formatDate(selectedDate));
+      // console.log(formatDate(selectedDate));
+    }
+  }, [loading, selectedDate]);
+
+
+
+
+  useEffect(() => {
+    const fetchPermission = filterDataByHospitalAndService(selectedClient, selectedDesignation);
+    setPermissionOT(fetchPermission.overtimePermission);
+  }, [selectedClient, selectedDesignation]);
+
+
 
   const handleBack = () => {
-    navigation.navigate("dropDown");
+    navigation.navigate("Organization");
   };
 
-  const AddClient = () => {
-    navigation.navigate("AddClient");
+  const AddStaff = () => {
+    navigation.navigate("AddStaff", {selectedClient, selectedDesignation});
   };
 
-  const handleSave = (cardId) => {
-    const updatedCardData = cardData.map((card) => {
-      if (card.id === cardId) {
-        if (!card.selectedItem) {
-          Alert.alert("Error", "Please select an item from the dropdown.");
-          return card; // Return the original card if no item is selected
-        } else {
-          Alert.alert(
-            "Data Saved",
-            `Attendance: ${
-              card.selectedItem ? card.selectedItem.title : "None"
-            }, OverTime: ${card.selectedItemValue} hrs`
-          );
-          // Reset the selectedItem and selectedItemValue after saving
-          return {
-            ...card,
-            selectedItem: null,
-            selectedItemValue: "",
-          };
-        }
+  const getEmployeeData = async () => {
+    try {
+      const employeeData = await AsyncStorage.getItem('employeeData');
+      if (employeeData) {
+        const parsedData = JSON.parse(employeeData);
+        setAdminId(parsedData._id);
       } else {
-        return card; // Return other cards unchanged
+        console.log('No data in async');
       }
-    });
-    setCardData(updatedCardData);
-
-    // Reset the dropdown state after saving
-    if (dropdownRefs.current[cardId]) {
-      dropdownRefs.current[cardId].reset();
+    } catch (err) {
+      console.log("Getting error in retrieving data", err);
     }
   };
 
+  useEffect(() => {
+    getEmployeeData();
+  }, []);
+
   const updateSelectedItem = (cardId, item) => {
     const updatedCardData = cardData.map((card) =>
-      card.id === cardId ? { ...card, selectedItem: item } : card
+      card._id === cardId ? { ...card, selectedItem: item, isSaved: false } : card
     );
     setCardData(updatedCardData);
   };
 
   const updateSelectedItemValue = (cardId, value) => {
     const updatedCardData = cardData.map((card) =>
-      card.id === cardId ? { ...card, selectedItemValue: value } : card
+      card._id === cardId ? { ...card, selectedItemValue: value, isSaved: false } : card
     );
     setCardData(updatedCardData);
   };
 
   const filteredCardData = cardData.filter((card) =>
-    card.name.toLowerCase().includes(searchInput.toLowerCase())
+    card.employeeName.toLowerCase().includes(searchInput.toLowerCase())
   );
 
-  const handleAttendance = () => {
-    navigation.navigate("AttendanceDetails");
+  const handleAttendance = (employeeId) => {
+    // console.log(id)
+    navigation.navigate("AttendanceDetails", {employeeId});
   };
+
+  useEffect(() => {
+    
+    const updatedCardData = cardData.map((card) => {
+      const attendanceRecord = attendanceData && attendanceData.find((record) => record.employeeId === card._id && formatDate(selectedDate) === record.checkInTime);
+      if (attendanceRecord) {
+        return {
+          ...card,
+          selectedItem: { title: attendanceRecord.attendanceStatus },
+          selectedItemValue: attendanceRecord.overTime || '',
+          isSaved: true,
+        };
+      } else {
+        // If attendanceData is undefined or there is no attendance record for the selected date, clear the attendance status
+        return {
+          ...card,
+          selectedItem: null,
+          selectedItemValue: '',
+          isSaved: false,
+        };
+      }
+    });
+    setCardData(updatedCardData);
+  }, [attendanceData, selectedDate]);
+  
+  
+
+  const handleSave = (cardId) => {
+    const card = cardData.find((card) => card._id === cardId);
+
+    const data = {
+      employeeId: cardId,
+      attendanceStatus: card.selectedItem?.title,
+      overTime: card.selectedItemValue || '',
+      checkInTime: formatDate(selectedDate),
+      madeBy: adminId,
+    };
+
+    console.log(data);
+    addAttendance(data);
+    
+
+    const updatedCardData = cardData.map((card) =>
+      card._id === cardId ? { ...card, isSaved: true } : card
+    );
+
+    const dropdownRef = dropdownRefs.current[cardId];
+    if (dropdownRef) {
+      dropdownRef.reset();
+    }
+    setCardData(updatedCardData);
+  };
+
+  const handleDateChange = (event, date) => {
+    setShowDatePicker(false);
+    if (date) {
+      setSelectedDate(date);
+    }
+  };
+
+
+  
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.mainheader}>
-          <TouchableOpacity activeOpacity={1} style={styles.bottomBarButton}>
-            <FontAwesome
-              name="chevron-left"
-              size={18}
-              style={styles.menuIcon}
-              onPress={handleBack}
-            />
+          <TouchableOpacity onPress={handleBack}>
+            <FontAwesome name="chevron-left" size={18} style={styles.menuIcon} />
           </TouchableOpacity>
           <View>
-            <Text style={styles.headerText}>GDA</Text>
-            <Text style={styles.headerTextItem}>New Hopital</Text>
+            <Text style={styles.headerText}>{selectedDesignation}</Text>
+            <Text style={styles.headerTextItem}>{selectedClient}</Text>
           </View>
         </View>
-        <TouchableOpacity onPress={AddClient} activeOpacity={1}>
-          <Text style={styles.addclient}>Add Employee</Text>
-        </TouchableOpacity>
       </View>
 
       <View style={styles.searchHeader}>
@@ -151,91 +211,120 @@ const Employee = () => {
         />
       </View>
 
-      <View style={styles.date}>
-        <Text style={styles.text}>DATE: {currentDate}</Text>
-        <Text style={styles.text}>TIME: {currentTime}</Text>
+      <TouchableOpacity
+        style={styles.addClientButton}
+        onPress={AddStaff}
+        activeOpacity={1}
+      >
+        <Ionicons name="person-add-outline" size={20} color="#fff" />
+        <Text style={styles.addClientText}> Add Staff</Text>
+      </TouchableOpacity>
+
+      <View style={styles.datePickerContainer}>
+        <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.datePickerButton}>
+          <Text style={styles.datePickerButtonText}>
+            {formatDate(selectedDate)}
+          </Text>
+        </TouchableOpacity>
+        {showDatePicker && (
+          <DateTimePicker
+            value={selectedDate}
+            mode="date"
+            display="default"
+            maximumDate={new Date()}
+            minimumDate={new Date(new Date().setDate(new Date().getDate() - 1))}
+            onChange={handleDateChange}
+          />
+        )}
       </View>
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
       >
-        {filteredCardData.map((card) => (
-          <View style={styles.allCardItem} key={card.id}>
-            <View style={styles.card}>
-              <TouchableOpacity
-                activeOpacity={1}
-                style={styles.cardItems}
-                onPress={handleAttendance}
-              >
-                <Image
-                  style={styles.profileImage}
-                  source={require("../images/profileImages.png")}
-                />
-                <Text style={styles.cardText}>{card.name}</Text>
+        <View style={styles.allCard}>
+          {filteredCardData.map((card) => (
+            <View
+              style={[
+                styles.allCardItem
+              ]}
+              key={card._id}
+            >
+              <TouchableOpacity style={[styles.card,
+                card.isSaved ? styles.savedCardItem : null,]} onPress={() =>handleAttendance(card._id)} activeOpacity={1}>
+                <View style={styles.cardItems}>
+                  <Image
+                    style={styles.profileImage}
+                    source={require("../images/profileImages.png")}
+                  />
+                  <Text style={styles.cardText}>{card.employeeName}</Text>
+                </View>
+                <Text style={styles.ViewDetails}>
+                  View
+                </Text>
               </TouchableOpacity>
-              <Text style={styles.ViewDetails} onPress={handleAttendance}>
-                View
-              </Text>
-            </View>
-
-            <View style={styles.attandanceDropDown}>
-              <View style={styles.attendance}>
-                <SelectDropdown
-                  ref={(ref) => (dropdownRefs.current[card.id] = ref)}
-                  data={[
-                    { title: "P/2" },
-                    { title: "P" },
-                    { title: "A" },
-                    { title: "P+P/2" },
-                    { title: "PP" },
-                    { title: "PP+P/2" },
-                    { title: "PPP" },
-                  ]}
-                  onSelect={(item) => updateSelectedItem(card.id, item)}
-                  renderButton={(selectedItem, isOpened) => (
-                    <View style={styles.dropdownButton}>
-                      <Text style={styles.dropdownButtonText}>
-                        {(selectedItem && selectedItem.title) || "Select"}
-                      </Text>
-                      <FontAwesome
-                        name={isOpened ? "chevron-up" : "chevron-down"}
-                        style={styles.dropdownButtonArrow}
-                      />
-                    </View>
+              <View style={styles.attendanceDropDown}>
+                <View style={styles.attendance}>
+                  <SelectDropdown
+                    ref={(ref) => (dropdownRefs.current[card._id] = ref)}
+                    data={[
+                      { title: "P/2" },
+                      { title: "P" },
+                      { title: "A" },
+                      { title: "P+P/2" },
+                      { title: "PP" },
+                      { title: "PP+P/2" },
+                      { title: "PPP" },
+                    ]}
+                    defaultButtonText={card.selectedItem?.title || "Select"}
+                    onSelect={(item) => updateSelectedItem(card._id, item)}
+                    renderButton={(selectedItem, isOpened) => (
+                      <View style={styles.dropdownButton}>
+                        <Text style={styles.dropdownButtonText}>
+                          {(selectedItem && selectedItem.title) || card.selectedItem?.title || "Select"}
+                        </Text>
+                        <FontAwesome
+                          name={isOpened ? "chevron-up" : "chevron-down"}
+                          style={styles.dropdownButtonArrow}
+                        />
+                      </View>
+                    )}
+                    renderItem={(item, index, isSelected) => (
+                      <View
+                        style={[
+                          styles.dropdownItem,
+                          isSelected && styles.selectedItem,
+                        ]}
+                      >
+                        <Text style={styles.dropdownItemText}>
+                          {item.title}
+                        </Text>
+                      </View>
+                    )}
+                    showsVerticalScrollIndicator={false}
+                    dropdownStyle={styles.dropdownMenu}
+                  />
+                  {permissionOT !== 'NO' && (
+                    <TextInput
+                      style={styles.AttendanceInput}
+                      placeholder="OT"
+                      keyboardType="numeric"
+                      value={(card.selectedItemValue !== null && card.selectedItemValue !== undefined) ? `${card.selectedItemValue}` : ''}
+                      onChangeText={(text) => updateSelectedItemValue(card._id, text)}
+                    />
                   )}
-                  renderItem={(item, index, isSelected) => (
-                    <View
-                      style={[
-                        styles.dropdownItem,
-                        isSelected && styles.selectedItem,
-                      ]}
-                    >
-                      <Text style={styles.dropdownItemText}>{item.title}</Text>
-                    </View>
-                  )}
-                  showsVerticalScrollIndicator={false}
-                  dropdownStyle={styles.dropdownMenu}
-                />
-                <TextInput
-                  style={styles.AttendanceInput}
-                  placeholder="OT"
-                  keyboardType="numeric"
-                  value={card.selectedItemValue}
-                  onChangeText={(text) =>
-                    updateSelectedItemValue(card.id, text)
-                  }
-                />
+                </View>
+                <TouchableOpacity
+                  style={styles.button}
+                  onPress={() => handleSave(card._id)}
+                >
+                  <Text style={styles.buttonText}>SAVE</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={styles.button}
-                onPress={() => handleSave(card.id)}
-              >
-                <Text style={styles.buttonText}>SAVE</Text>
-              </TouchableOpacity>
             </View>
-          </View>
-        ))}
+          ))}
+        </View>
       </ScrollView>
     </View>
   );
@@ -251,8 +340,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     backgroundColor: "#184562",
-    padding: 18,
-    paddingTop: 40,
+    padding: 10,
+    height: 60,
+    marginTop: 25,
     alignItems: "center",
     justifyContent: "space-between",
   },
@@ -267,17 +357,13 @@ const styles = StyleSheet.create({
   },
   menuIcon: {
     backgroundColor: "#fff",
-    padding: 10,
+    padding: 5,
     borderRadius: 10,
     alignSelf: "center",
   },
-  addclient: {
-    fontSize: 16,
-    color: "#fff",
-    fontWeight: "bold",
-  },
   mainheader: {
     flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   searchHeader: {
@@ -295,19 +381,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     marginLeft: 10,
   },
-  date: {
+  addClientButton: {
+    position: "absolute",
+    bottom: 20,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: "#184562",
+    padding: 10,
+    borderRadius: 20,
     flexDirection: "row",
-    alignSelf: "center",
-    gap: 30,
-    marginTop: 10,
   },
-  text: {
+  addClientText: {
     fontSize: 16,
-    color: "red",
-    fontWeight: "800",
+    color: "#fff",
+    fontWeight: "bold",
   },
-  scrollContent: {
-    flexGrow: 1,
+  datePickerContainer: {
+    marginTop: 5,
+    margin: 8,
+    justifyContent: 'flex-end',
+    alignItems: 'flex-end'
+  },
+  datePickerButton: {
+    backgroundColor: '#00456e',
+    paddingVertical: 5,
+    paddingHorizontal: 15,
+    borderRadius: 10
+  },
+  datePickerButtonText: {
+    color: '#fff'
+  },
+  allCard: {
+    marginBottom: 100,
   },
   allCardItem: {
     width: "95%",
@@ -319,6 +424,10 @@ const styles = StyleSheet.create({
     borderColor: "#184562",
     borderRadius: 10,
     padding: 5,
+    backgroundColor: "#fff", // Default background color
+  },
+  savedCardItem: {
+    backgroundColor: "#e0ffe0", // Green background color for saved items
   },
   cardItems: {
     fontSize: 12,
@@ -344,7 +453,6 @@ const styles = StyleSheet.create({
   profileImage: {
     width: 50,
     height: 50,
-    alignSelf: "center",
   },
   cardText: {
     fontSize: 12,
@@ -362,6 +470,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#007500",
     color: "#fff",
     fontWeight: "bold",
+  },
+  attendanceDropDown: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   attendance: {
     flexDirection: "row",
@@ -389,7 +501,6 @@ const styles = StyleSheet.create({
   dropdownItem: {
     paddingVertical: 3,
     paddingHorizontal: 8,
-    width: 120, // Match the width of the dropdown button
     borderWidth: 1,
   },
   dropdownItemText: {
@@ -405,9 +516,8 @@ const styles = StyleSheet.create({
     width: 60,
   },
   button: {
-    marginTop: 30,
+    marginTop: 75,
     borderColor: "#184562",
-    marginLeft: 50,
   },
   buttonText: {
     color: "#184562",

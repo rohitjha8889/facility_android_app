@@ -2,7 +2,7 @@
   "expo": {
     "name": "metrolitefacility",
     "slug": "metrolitefacility",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -21,7 +21,9 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.metrolitehomeservices.metrolitefacility",
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png"

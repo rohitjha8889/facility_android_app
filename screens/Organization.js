@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,8 +10,16 @@ import {
   Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
+import Employee from "./Employee";
+import AddStaff from "./AddStaff";
+import AttendanceDetails from "./AttendanceDetails";
+const Stack = createStackNavigator();
+import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { DataContext } from "../Data/DataContext";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const DropDown = () => {
+const Organization = () => {
   const navigation = useNavigation();
   const [selectedClient, setSelectedClient] = useState("Select Client");
   const [selectedDesignation, setSelectedDesignation] =
@@ -21,32 +29,58 @@ const DropDown = () => {
   const [searchInputClient, setSearchInputClient] = useState("");
   const [searchInputDesignation, setSearchInputDesignation] = useState("");
 
-  // Initialize clients and designations
-  const [clients, setClients] = useState([
-    "Noida Hospital",
-    "New Hospital",
-    "Old Hospital",
-    "Home Service",
-    "Supervisor + Security",
-    "Supervisor + GDA/HK",
-  ]);
+  const [availableService, setAvailableService] = useState([]); // Initialize as an empty array
 
-  const [designations, setDesignations] = useState([
-    "SG",
-    "GDA",
-    "HK",
-    "Receptionist",
-    "Supervisor + Security",
-    "Supervisor + GDA/HK",
-  ]);
+  const { services, allClient } = useContext(DataContext)
+
+  const [permitedOrganization, setPermitedOrganization] = useState()
+
+  useEffect(()=>{
+    getEmployeeData()
+  },[])
+
+  const getEmployeeData = async () => {
+    try {
+      const employeeData = await AsyncStorage.getItem('employeeData');
+      if (employeeData) {
+        const parsedData = JSON.parse(employeeData);
+        // console.log(parsedData);
+        if (parsedData.employeeName) {
+          if (parsedData.service === 'Field Executive') {
+            setPermitedOrganization('');
+          } else {
+            setPermitedOrganization(parsedData.hospitalName);
+          }
+        } else {
+          console.error('Employee name not found in employee data:', parsedData);
+        }
+      } else {
+        console.error('No employee data found in AsyncStorage');
+      }
+    } catch (error) {
+      console.error('Error retrieving employee data from AsyncStorage:', error);
+    }
+  };
 
   const handleButtonPressBack = () => {
     navigation.navigate("DashboardScreen");
   };
 
-  const handleSelectClient = (item) => {
-    setSelectedClient(item);
+  const handleSelectClient = (selectedHospital) => {
+    if (permitedOrganization && permitedOrganization !== selectedHospital) {
+      Alert.alert("Permission Denied", "You do not have permission to make attendance for this hospital.");
+      return;
+    }
+    
+    setSelectedClient(selectedHospital);
     setIsClientClicked(false);
+  
+    // Filter data to get services for the selected hospital
+    const selectedHospitalServices = allClient
+      .filter(item => item.hospitalName === selectedHospital)
+      .map(item => item.service);
+  
+    setAvailableService(selectedHospitalServices);
   };
 
   const handleSelectDesignation = (item) => {
@@ -60,15 +94,30 @@ const DropDown = () => {
       selectedDesignation === "Select Designation"
     ) {
       Alert.alert("Please select both client and designation options");
+    } else if (availableService.length === 0) {
+      Alert.alert("Please select an organization");
     } else {
-      navigation.navigate("Employee", { selectedClient, selectedDesignation });
+      navigation.navigate("Employee", {selectedClient, selectedDesignation});
     }
+  };
+
+  const handleBack = () => {
+    navigation.navigate("DashboardHome");
   };
 
   return (
     <View style={styles.dropdownCointainer}>
       <View style={styles.header}>
-        <Text style={styles.text}>Attendance</Text>
+        <TouchableOpacity onPress={handleBack}>
+          <FontAwesome
+            name="chevron-left"
+            size={18}
+            style={styles.menuIcon}
+          />
+        </TouchableOpacity>
+        <View style={styles.headerText}>
+          <Text style={styles.text1}>Attendance</Text>
+        </View>
       </View>
 
       <View style={styles.allDropDown}>
@@ -101,12 +150,13 @@ const DropDown = () => {
               onChangeText={(text) => setSearchInputClient(text)}
             />
             <FlatList
-              data={clients.filter((option) =>
-                option.toLowerCase().includes(searchInputClient.toLowerCase())
-              )}
+              data={Array.from(new Set(allClient.map(item => item.hospitalName))) // Get unique hospital names
+                .filter(hospitalName =>
+                  hospitalName.toLowerCase().includes(searchInputClient.toLowerCase())
+                )}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  activeOpacity={1}
+                  activeOpacity={0.8}
                   style={styles.optionItem}
                   onPress={() => handleSelectClient(item)}
                 >
@@ -148,10 +198,8 @@ const DropDown = () => {
             onChangeText={(text) => setSearchInputDesignation(text)}
           />
           <FlatList
-            data={designations.filter((option) =>
-              option
-                .toLowerCase()
-                .includes(searchInputDesignation.toLowerCase())
+            data={availableService.filter((option) =>
+              option.toLowerCase().includes(searchInputDesignation.toLowerCase())
             )}
             renderItem={({ item }) => (
               <TouchableOpacity
@@ -163,6 +211,7 @@ const DropDown = () => {
               </TouchableOpacity>
             )}
             keyExtractor={(item, index) => index.toString()}
+            style={styles.flatList} // Add this style if needed
           />
         </View>
       )}
@@ -186,22 +235,31 @@ const DropDown = () => {
   );
 };
 
-export default DropDown;
+export default Organization;
 
 const styles = StyleSheet.create({
   header: {
-    marginTop:30,
+    flexDirection: "row",
+    marginTop: 25,
     backgroundColor: "#184562",
-    height:50,
-    // padding: 20,
-    justifyContent:'center',
-    alignItems:'center'
+    padding: 10,
+    height: 50,
+    alignItems: "center",
   },
-  text: {
+  headerText: {
+    flex: 1,
+    alignItems: "center",
+  },
+  text1: {
+    fontSize: 20,
     color: "#fff",
-    fontSize: 18,
-    fontWeight: "600",
-    
+    fontWeight: "bold",
+  },
+  menuIcon: {
+    backgroundColor: "#fff",
+    padding: 5,
+    borderRadius: 10,
+    alignSelf: "center",
   },
   heading: {
     fontSize: 16,
@@ -226,7 +284,6 @@ const styles = StyleSheet.create({
   },
   allDropDown: {
     marginTop: 20,
-    
   },
   icon: {
     width: 15,

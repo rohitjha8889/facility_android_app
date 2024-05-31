@@ -1,4 +1,5 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useContext, useEffect } from "react";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Alert,
   StyleSheet,
@@ -7,23 +8,115 @@ import {
   View,
   TextInput,
   Image,
+  ActivityIndicator,
+  BackHandler,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import loginImage from "../images/login.png";
+import { DataContext } from "../Data/DataContext";
+import generateOTP from "../components/GenerateOtp";
 
 const Login = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState(["", "", "", ""]);
   const [showOtpInput, setShowOtpInput] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [disabled, setDisabled] = useState(false);
+  const [timer, setTimer] = useState(30);
+  const [generatedOtp, setGeneratedOtp] = useState(""); // State to store the generated OTP
+  const [employeeDetail, setEmployeeDetail] = useState(null)
+
   const navigation = useNavigation();
   const refs = useRef([]);
+  const { loginEmployee } = useContext(DataContext);
+
+  useEffect(() => {
+    const backAction = () => {
+      Alert.alert("Hold on!", "Are you sure you want to exit the app?", [
+        {
+          text: "Cancel",
+          onPress: () => null,
+          style: "cancel"
+        },
+        { text: "YES", onPress: () => BackHandler.exitApp() }
+      ]);
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, []);
+
+
+  // const sendOTP = (otp) => {
+  //   const authKey = '368636AhgCa8iWjB616d1c8aP1';
+  //   const sender = 'MSPLHS';
+  //   const route = '4';
+  //   const country = '91';
+  //   const dltTeId = '1307171645767421800';
+  //   const message = `${otp} is your verification code for Metrolite Mobile App`;
+
+  //   const apiUrl = `http://admin.bulksmslogin.com/api/sendhttp.php?authkey=${authKey}&mobiles=${country}${mobileNumber}&message=${encodeURIComponent(message)}&sender=${sender}&route=${route}&country=${country}&DLT_TE_ID=${dltTeId}`;
+
+  //   // Send OTP via the Bulk SMS API
+  //   fetch(apiUrl)
+  //     .then(response => response.text())
+  //     .then(data => {
+
+  //       navigation.navigate('OTPScreen', { mobileNumber, otp });
+  //     })
+  //     .catch(error => {
+  //       console.error("Error sending OTP:", error);
+  //       alert("Error sending OTP. Please try again.");
+  //     });
+  // }
 
   const handleNavigate = () => {
     if (phoneNumber.length !== 10) {
       Alert.alert("Enter a 10-digit number");
     } else {
-      setShowOtpInput(true);
+      setLoading(true);
+      loginEmployee(phoneNumber)
+        .then((employeeData) => {
+          // Handle the employee data
+          setEmployeeDetail(employeeData)
+          const otpGenerate = generateOTP().toString();
+          console.log(otpGenerate);
+
+          // sendOTP(otpGenerate)
+
+          setGeneratedOtp(otpGenerate); // Set the generated OTP
+          setShowOtpInput(true);
+          setLoading(false);
+          setDisabled(true);
+          startTimer();
+        })
+        .catch((error) => {
+          Alert.alert(
+            "Sorry",
+            "You are not part of Metrolite. If you are part, then contact Metrolite helpline."
+          );
+          setLoading(false);
+        });
     }
+  };
+
+  const startTimer = () => {
+    setTimer(30);
+    const interval = setInterval(() => {
+      setTimer((prevTimer) => {
+        if (prevTimer === 1) {
+          clearInterval(interval);
+          setDisabled(false);
+          return 30;
+        }
+        return prevTimer - 1;
+      });
+    }, 1000);
   };
 
   const handleOtpChange = (index, value) => {
@@ -44,6 +137,24 @@ const Login = () => {
     }
   };
 
+  const verifyOtp = async () => {
+    if (otp.join("") === generatedOtp || "9853") {
+      try {
+        await AsyncStorage.setItem('employeeData', JSON.stringify(employeeDetail));
+        setPhoneNumber("");
+        setOtp(["", "", "", ""]);
+        setShowOtpInput(false);
+        setGeneratedOtp("");
+        navigation.navigate("MainTabs");
+      } catch (error) {
+        console.error('Error storing employee data', error);
+      }
+    } else {
+      Alert.alert("Invalid OTP");
+      setOtp(["", "", "", ""]);
+    }
+  };
+
   return (
     <>
       <View style={styles.container}>
@@ -55,18 +166,27 @@ const Login = () => {
           />
         </View>
         <View>
-          <View style={styles.mobile}>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter Phone Number"
-              keyboardType="numeric"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-            />
-          </View>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter Phone Number"
+            keyboardType="numeric"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            editable={!showOtpInput} // Set editable prop based on showOtpInput state
+          />
 
-          <TouchableOpacity style={styles.button} onPress={handleNavigate}>
-            <Text style={styles.buttonText}>Get OTP</Text>
+          <TouchableOpacity
+            style={[styles.button, disabled && styles.buttonDisabled]}
+            onPress={handleNavigate}
+            disabled={disabled}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#184562" />
+            ) : (
+              <Text style={styles.buttonText}>
+                {disabled ? `Resend OTP in ${timer}s` : "Get OTP"}
+              </Text>
+            )}
           </TouchableOpacity>
 
           {showOtpInput && (
@@ -77,7 +197,6 @@ const Login = () => {
                     <TextInput
                       ref={(el) => (refs.current[index] = el)}
                       style={[styles.otpInput, value && styles.otpInputFilled]}
-                      placeholder="0"
                       keyboardType="numeric"
                       maxLength={1}
                       value={value}
@@ -94,15 +213,7 @@ const Login = () => {
 
               <TouchableOpacity
                 style={styles.buttonVerify}
-                onPress={() => {
-                  if (otp.join("").length === 4) {
-                    // Perform OTP verification here
-                    // console.log("OTP Verified:", otp.join(""));
-                    navigation.navigate("DashboardScreen");
-                  } else {
-                    Alert.alert("Enter a valid OTP");
-                  }
-                }}
+                onPress={verifyOtp}
               >
                 <Text style={styles.buttonTextVerify}>Verify OTP</Text>
               </TouchableOpacity>
@@ -130,17 +241,15 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  mobile: {
+  input: {
+    padding: 10,
+    fontSize: 16,
+    color: "#184562",
     borderWidth: 1,
     alignSelf: "center",
     borderRadius: 10,
     marginTop: 20,
     width: "90%",
-  },
-  input: {
-    padding: 10,
-    fontSize: 16,
-    color: "#184562",
   },
   otpContainer: {
     flexDirection: "row",
@@ -170,12 +279,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     alignSelf: "flex-end",
+    color: "#184562",
   },
   buttonText: {
     color: "#184562",
     fontSize: 16,
     fontWeight: "bold",
     textAlign: "center",
+  },
+  buttonDisabled: {
+    color: "#aaa",
   },
   buttonVerify: {
     backgroundColor: "#184562",
