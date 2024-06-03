@@ -29,9 +29,9 @@ const AddStaff = ({ route }) => {
   const { IP_Address, handleSaveEmployee } = useContext(DataContext)
   const { selectedClient, selectedDesignation } = route.params;
 
-  useEffect(() => {
-    console.log(selectedClient, selectedDesignation)
-  }, [selectedClient, selectedDesignation])
+  // useEffect(() => {
+  //   console.log(selectedClient, selectedDesignation)
+  // }, [selectedClient, selectedDesignation])
 
 
   const handleSave = async () => {
@@ -127,7 +127,7 @@ const AddStaff = ({ route }) => {
           <FontAwesome name="chevron-left" size={18} style={styles.menuIcon} />
         </TouchableOpacity>
         <View>
-          <Text style={styles.headerText}>Attendance</Text>
+          <Text style={styles.headerText}>Add Staff</Text>
         </View>
       </View>
 
@@ -261,8 +261,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: "#184562",
 
-    marginTop: 25,
-    height: 70,
+    // marginTop: 25,
+    height: 50,
     padding: 5,
     paddingLeft: 10,
     alignItems: "center",

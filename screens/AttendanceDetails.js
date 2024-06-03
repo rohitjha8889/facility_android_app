@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
-    marginTop: 25,
+    // marginTop: 25,
     backgroundColor: "#184562",
     padding: 10,
     height: 50,

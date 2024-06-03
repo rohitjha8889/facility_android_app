@@ -163,7 +163,7 @@ const Employee = ({ route }) => {
       madeBy: adminId,
     };
 
-    console.log(data);
+    // console.log(data);
     addAttendance(data);
     
 
@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#184562",
     padding: 10,
     height: 60,
-    marginTop: 25,
+    // marginTop: 25,
     alignItems: "center",
     justifyContent: "space-between",
   },

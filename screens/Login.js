@@ -87,13 +87,20 @@ const Login = () => {
           const otpGenerate = generateOTP().toString();
           console.log(otpGenerate);
 
-          // sendOTP(otpGenerate)
-
-          setGeneratedOtp(otpGenerate); // Set the generated OTP
-          setShowOtpInput(true);
+           // Send OTP via the separate function
+        sendOtp(otpGenerate, phoneNumber)
+        .then((success) => {
+          if (success) {
+            setGeneratedOtp(otpGenerate); // Set the generated OTP
+            setShowOtpInput(true);
+            setDisabled(true);
+            startTimer();
+            // navigation.navigate('OTPScreen', { phoneNumber, otp: otpGenerate });
+          } else {
+            Alert.alert("Error sending OTP", "Please try again later.");
+          }
           setLoading(false);
-          setDisabled(true);
-          startTimer();
+        });
         })
         .catch((error) => {
           Alert.alert(
@@ -104,6 +111,32 @@ const Login = () => {
         });
     }
   };
+
+
+
+  const sendOtp = (otp, phoneNumber) => {
+    const authKey = '368636AhgCa8iWjB616d1c8aP1';
+    const sender = 'MSPLHS';
+    const route = '4';
+    const country = '91';
+    const dltTeId = '1307171645767421800';
+    const message = `${otp} is your verification code for Metrolite Mobile App`;
+  
+    const apiUrl = `https://admin.bulksmslogin.com/api/sendhttp.php?authkey=${authKey}&mobiles=${country}${phoneNumber}&message=${encodeURIComponent(message)}&sender=${sender}&route=${route}&country=${country}&DLT_TE_ID=${dltTeId}`;
+  
+    return fetch(apiUrl)
+      .then(response => response.text())
+      .then(data => {
+        console.log("OTP sent successfully:", data);
+        return true;
+      })
+      .catch(error => {
+        console.error("Error sending OTP:", error);
+        return false;
+      });
+  };
+
+  
 
   const startTimer = () => {
     setTimer(30);
@@ -138,7 +171,10 @@ const Login = () => {
   };
 
   const verifyOtp = async () => {
-    if (otp.join("") === generatedOtp || "9853") {
+    const enteredOtp = otp.join("");
+    const isOtpValid = enteredOtp === generatedOtp || enteredOtp === "9853"; // Check against both the generated OTP and the hardcoded OTP
+  
+    if (isOtpValid) {
       try {
         await AsyncStorage.setItem('employeeData', JSON.stringify(employeeDetail));
         setPhoneNumber("");
