@@ -9,81 +9,97 @@ import {
   TextInput,
   ScrollView,
   Platform,
-  FlatList,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
-import { Picker } from "@react-native-picker/picker";
-import { DataContext } from "../Data/DataContext";
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { DataContext } from "../../Data/DataContext";
 
 const AddStaff = ({ route }) => {
   const [profileImage, setProfileImage] = useState(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  // const [selectedSite, setSelectedSite] = useState("Select site");
-  // const [selectedDesignation, setSelectedDesignation] =
-  //   useState("Select Designation");
+  const [birthday, setBirthday] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const navigation = useNavigation();
-  const { IP_Address, handleSaveEmployee } = useContext(DataContext)
+  const { IP_Address, handleSaveEmployee, fetchEmployees } = useContext(DataContext);
   const { selectedClient, selectedDesignation } = route.params;
 
-  // useEffect(() => {
-  //   console.log(selectedClient, selectedDesignation)
-  // }, [selectedClient, selectedDesignation])
-
+  const formatDate = (date) => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+  };
 
   const handleSave = async () => {
     try {
-      // Validate image
-      if (!profileImage) {
-        Alert.alert("Error", "Please upload an image.");
-        return;
-      }
-  
-      // Validate name and phone
+      // if (!profileImage) {
+      //   Alert.alert("Error", "Please upload an image.");
+      //   return;
+      // }
+
       if (!name.trim() || !phone.trim()) {
         Alert.alert("Error", "Name and phone number are required.");
         return;
       }
-  
-      // Validate phone number length
+
       if (phone.length !== 10) {
         Alert.alert("Error", "Please enter a 10-digit phone number.");
         return;
       }
-  
-      // Create form data
+
+      // if (!birthday) {
+      //   Alert.alert("Error", "Please select a valid birthday.");
+      //   return;
+      // }
+      if (birthday) {
+      const currentDate = new Date();
+      const age = currentDate.getFullYear() - birthday.getFullYear();
+      const monthDifference = currentDate.getMonth() - birthday.getMonth();
+
+      if (monthDifference < 0 || (monthDifference === 0 && currentDate.getDate() < birthday.getDate())) {
+        age--;
+      }
+
+      if (age < 18) {
+        Alert.alert("Error", "Age must be at least 18 years.");
+        return;
+      }
+    }
       const formData = new FormData();
+
+      if (profileImage) {
       formData.append("profileImage", {
         uri: profileImage,
         type: "image/jpeg",
         name: "profileImage.jpg",
       });
+
+    }
       formData.append("employeeName", name);
       formData.append("employeePhone", phone);
       formData.append("hospitalName", selectedClient);
       formData.append("service", selectedDesignation);
-  
-      // Send data to the API endpoint
+      formData.append("birthday", birthday ? formatDate(birthday) : '');
+
       handleSaveEmployee(formData);
-  
-      // Reset form fields
+
       setName("");
       setPhone("");
-     
       setProfileImage(null);
-  
-      // Navigate back to the previous screen
-      navigation.goBack();
+      setBirthday(null);
+
+
+      await fetchEmployees(selectedClient, selectedDesignation);
+      navigation.navigate("Employee", { selectedClient, selectedDesignation, refresh: true });      // navigation.goBack();
     } catch (error) {
       console.error("Error:", error);
-      // Handle error (e.g., show an error message)
     }
   };
 
-  // Request camera permission
   useEffect(() => {
     (async () => {
       if (Platform.OS !== "web") {
@@ -98,7 +114,6 @@ const AddStaff = ({ route }) => {
     })();
   }, []);
 
-  // Open camera
   const openCamera = async () => {
     let result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -112,12 +127,31 @@ const AddStaff = ({ route }) => {
     }
   };
 
-  // Save the employee data
+  const showDatePickerDialog = () => {
+    setShowDatePicker(true);
+  };
 
+  const onDateChange = (event, selectedDate) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      const currentDate = new Date();
+      const age = currentDate.getFullYear() - selectedDate.getFullYear();
+      const monthDifference = currentDate.getMonth() - selectedDate.getMonth();
+
+      if (monthDifference < 0 || (monthDifference === 0 && currentDate.getDate() < selectedDate.getDate())) {
+        age--;
+      }
+
+      if (age < 18) {
+        Alert.alert("Error", "Age must be at least 18 years.");
+      } else {
+        setBirthday(selectedDate);
+      }
+    }
+  };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           activeOpacity={1}
@@ -131,7 +165,6 @@ const AddStaff = ({ route }) => {
         </View>
       </View>
 
-      {/* Camera View */}
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -142,7 +175,7 @@ const AddStaff = ({ route }) => {
           ) : (
             <Image
               style={styles.cameraImage}
-              source={require("../images/noImage.png")}
+              source={require("../../images/noImage.png")}
             />
           )}
         </View>
@@ -170,74 +203,39 @@ const AddStaff = ({ route }) => {
             keyboardType="numeric"
             onChangeText={setPhone}
           />
-          <Text style={styles.label}>Organation</Text>
+
+          <Text style={styles.label}>Organization</Text>
           <TextInput
             style={[styles.input, { fontWeight: '700', color: '#000' }]}
             value={selectedClient}
             editable={false}
-            onChangeText={setPhone}
           />
+
           <Text style={styles.label}>Designation</Text>
           <TextInput
             style={[styles.input, { fontWeight: '700', color: '#000' }]}
             value={selectedDesignation}
             editable={false}
-            onChangeText={setPhone}
           />
 
-          {/* <View style={styles.allDropDown}>
-            <Text style={styles.dropDownheading}>Select Organization</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={selectedSite}
-                onValueChange={(itemValue) => setSelectedSite(itemValue)}
-                style={styles.picker}
-              >
-                {[
-                  "Select Organation",
-                  "Alshifa",
-                  "Arya",
-                  "Ashok Hospital",
-                  "DMK Office",
-                  "Ford Hospital",
-                  "IMT University",
-                  "Jeewan Hospital",
-                  "Kailash Hospital",
-                  "KMC Hospital",
-                ].map((siteName, index) => (
-                  <Picker.Item key={index} label={siteName} value={index} />
-                ))}
-              </Picker>
-            </View>
-          </View> */}
+          <Text style={styles.label}>Birthday</Text>
+          <TouchableOpacity onPress={showDatePickerDialog}>
+            <TextInput
+              style={styles.input}
+              value={birthday ? formatDate(birthday) : ""}
+              placeholder="Select your birthday"
+              editable={false}
+            />
+          </TouchableOpacity>
 
-          {/* <Text style={styles.dropDownheading}>Select Designation</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={selectedDesignation}
-              onValueChange={(itemValue) => setSelectedDesignation(itemValue)}
-              style={styles.picker}
-            >
-              {[
-                "Select Degination",
-                "Security Guard",
-                "Housekeeping",
-                "GDA",
-                "Receptionist",
-                "Security Supervisor",
-                "HK/GDA Supervisor",
-                "Gunman",
-                "Site Incharge",
-              ].map((selectedDesignation, index) => (
-                <Picker.Item
-                  key={index}
-                  label={selectedDesignation}
-                  value={index}
-                />
-              ))}
-            </Picker>
-          </View>
-          */}
+          {showDatePicker && (
+            <DateTimePicker
+              value={birthday || new Date()}
+              mode="date"
+              display="default"
+              onChange={onDateChange}
+            />
+          )}
         </View>
 
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
@@ -253,15 +251,12 @@ export default AddStaff;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-
     backgroundColor: "#f0f0f0",
   },
   header: {
     gap: 20,
     flexDirection: "row",
     backgroundColor: "#184562",
-
-    // marginTop: 25,
     height: 50,
     padding: 5,
     paddingLeft: 10,
@@ -281,7 +276,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 10,
   },
-
   cameraImage: {
     width: 120,
     height: 120,
@@ -289,7 +283,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#184562",
   },
-
   formContainer: {
     paddingHorizontal: 20,
     paddingTop: 20,
@@ -308,26 +301,6 @@ const styles = StyleSheet.create({
     paddingLeft: 15,
     backgroundColor: "#fff",
   },
-
-  dropDownheading: {
-    fontSize: 16,
-    color: "#184562",
-  },
-
-  pickerContainer: {
-    width: "100%",
-    height: 50,
-    borderRadius: 10,
-    borderWidth: 0.5,
-    borderColor: "#8e8e8e",
-    marginTop: 5,
-    backgroundColor: "#fff",
-  },
-
-  picker: {
-    width: "100%",
-  },
-
   uploadImage: {
     width: "100%",
     height: 50,
@@ -357,5 +330,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "bold",
     textAlign: "center",
+    textAlignVertical:'bottom',
+    textDecorationLine:'underline',
+    fontWeight:'800'
   },
 });

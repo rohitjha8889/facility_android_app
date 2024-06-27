@@ -16,10 +16,10 @@ import Feather from "react-native-vector-icons/Feather";
 import { DataContext } from "../Data/DataContext";
 import { useRoute } from '@react-navigation/native';
 
-const AttendanceDetails = () => {
+const MyAttendance = () => {
 
   const route = useRoute();
-  const { employeeId } = route.params;
+  // const { employeeId } = route.params;
 
 
 
@@ -31,20 +31,25 @@ const AttendanceDetails = () => {
 
   const [totalPresent, setTotalPresent] = useState(0);
   const [totalAbsent, setTotalAbsent] = useState(0);
-  const[totalOt, setTotalOt] = useState(0)
+  const [totalOt, setTotalOt] = useState(0)
   const [loading, setLoading] = useState(true);
 
-  const { fetchAttendanceData, employeeAttendance, fetchEmployeeDetail, employeeDetail } = useContext(DataContext)
+  const { fetchAttendanceData, employeeAttendance, fetchEmployeeDetail, employeeDetail, fetchData, userDetail } = useContext(DataContext)
 
   const navigation = useNavigation();
   const handleBack = () => {
     navigation.goBack()
   };
 
+
   useEffect(() => {
-    fetchAttendanceData(employeeId)
-    fetchEmployeeDetail(employeeId)
-  }, [employeeId])
+    fetchData()
+  }, [])
+
+  useEffect(() => {
+    fetchAttendanceData(userDetail._id)
+    fetchEmployeeDetail(userDetail._id)
+  }, [userDetail._id])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -60,7 +65,7 @@ const AttendanceDetails = () => {
       let presentCount = 0;
       let absentCount = 0;
       let otCount = 0;
-  
+
       // Check if employeeAttendance is empty
       if (employeeAttendance.length === 0) {
         // If empty, set counts to 0 and return
@@ -69,14 +74,14 @@ const AttendanceDetails = () => {
         setTotalOt(otCount);
         return;
       }
-  
+
       // Extract year and month from selected date
       const year = selectedDate.getFullYear();
       const month = selectedDate.getMonth() + 1;
 
       let filteredAttendance = []
-  
-      if(employeeAttendance.length > 0){
+
+      if (employeeAttendance.length > 0) {
 
         // Filter attendance records for the selected month and year
         filteredAttendance = employeeAttendance.filter(attendance => {
@@ -85,10 +90,10 @@ const AttendanceDetails = () => {
           return attendanceDate.getFullYear() === year && attendanceDate.getMonth() + 1 === month;
         });
       }
-  
+
       // Calculate the number of days in the selected month
       const daysInMonth = new Date(year, month, 0).getDate();
-  
+
       // Loop through each day of the month
       for (let day = 1; day <= daysInMonth; day++) {
         // Find attendance record for the current day
@@ -97,7 +102,7 @@ const AttendanceDetails = () => {
           const attendanceDate = new Date(`${yearStr}-${monthStr}-${dayStr}`);
           return attendanceDate.getDate() === day;
         });
-  
+
         // If attendance record exists for the day, update counts based on attendance status
         if (attendanceForDay) {
           const status = attendanceForDay.attendanceStatus;
@@ -122,17 +127,17 @@ const AttendanceDetails = () => {
           }
         }
       }
-  
+
       // Update state with calculated counts
       setTotalPresent(presentCount);
       setTotalAbsent(absentCount);
       setTotalOt(otCount);
     };
-  
+
     // Execute the calculation function
     calculateAttendanceCounts();
   }, [employeeAttendance, selectedDate]);
-  
+
 
 
 
@@ -141,7 +146,7 @@ const AttendanceDetails = () => {
   const renderDates = () => {
     const year = selectedDate.getFullYear();
     const month = selectedDate.getMonth() + 1; // Month starts from 0, so add 1
-  
+
     let filteredAttendance = [];
     if (employeeAttendance.length > 0) {
       // Filter attendance records for the selected month and year
@@ -151,8 +156,8 @@ const AttendanceDetails = () => {
         return attendanceDate.getFullYear() === year && attendanceDate.getMonth() + 1 === month;
       });
     }
-  
-    // If employeeAttendance is empty, return a clean UI
+
+    // If employeeAttendance is empty or no attendance records for the selected month, show clean UI
     if (employeeAttendance.length === 0 || filteredAttendance.length === 0) {
       return (
         <View style={styles.cleanUIContainer}>
@@ -160,29 +165,61 @@ const AttendanceDetails = () => {
         </View>
       );
     }
-  
+
     const firstDayOfMonth = new Date(year, month - 1, 1).getDay(); // Adjust month by -1 to get the correct index
     const daysInMonth = new Date(year, month, 0).getDate();
-  
+
     const datesArray = [];
     let presentCount = 0;
     let absentCount = 0;
     let halfCount = 0;
     let otCount = 0;
-  
+
     for (let i = 0; i < firstDayOfMonth; i++) {
-      datesArray.push(<View style={styles.emptyDate} key={`empty-${i}`}><Text style={styles.text}>_</Text></View>);
+      datesArray.push(
+        <View style={styles.emptyDate} key={`empty-${i}`}>
+          <Text style={styles.text}>_</Text>
+        </View>
+      );
     }
-  
+
     for (let day = 1; day <= daysInMonth; day++) {
       const attendanceForDay = filteredAttendance.find(attendance => {
         const [dayStr, monthStr, yearStr] = attendance.checkInTime.split('.');
         const attendanceDate = new Date(`${yearStr}-${monthStr}-${dayStr}`);
         return attendanceDate.getDate() === day;
       });
-  
+
+      let circleColor = '#ffffff';
+      let borderStyle = 1
+      // Default background color for the circle
+
       if (attendanceForDay) {
         const status = attendanceForDay.attendanceStatus;
+        // Determine background color based on attendance status
+        switch (status) {
+          case 'P':
+          case 'P/2':
+            circleColor = '#008000'; // Green
+            borderStyle = 0
+            break;
+          case 'A':
+            circleColor = '#af0c0c'; // Red
+            borderStyle = 0
+            break;
+          case 'PP':
+          case 'PP+P/2':
+          case 'PPP':
+            circleColor = '#c47d01'; // Orange
+            borderStyle = 0
+            break;
+          default:
+            circleColor = '#ffffff'; // White for other cases
+            borderStyle = 1
+            break;
+        }
+
+        // Update counts based on status
         if (status === 'P') {
           presentCount += 1;
         } else if (status === 'PP') {
@@ -199,21 +236,21 @@ const AttendanceDetails = () => {
           presentCount += 1;
           otCount += 0.5;
         } else if (status === 'PP+P/2') {
-          presentCount += 1
-          otCount += 1.5
+          presentCount += 1;
+          otCount += 1.5;
         }
       }
-  
+
       datesArray.push(
         <View style={styles.date} key={day}>
           <Text style={{ textAlign: 'center' }}>{day}</Text>
-          <View style={styles.circle}>
-            <Text style={styles.text}>{attendanceForDay ? attendanceForDay.attendanceStatus : '_'}</Text>
+          <View style={[styles.circle, { backgroundColor: circleColor, borderWidth: borderStyle }]}>
+            <Text style={styles.text}>{attendanceForDay ? attendanceForDay.attendanceStatus : ''}</Text>
           </View>
         </View>
       );
     }
-  
+
     return datesArray;
   };
   const generateYears = () => {
@@ -290,18 +327,18 @@ const AttendanceDetails = () => {
             <Text style={styles.summaryText}>Present</Text>
             <Text style={styles.summaryNumber}>{totalPresent}</Text>
           </View>
-          <View style={[styles.summaryBox, { backgroundColor: '#f9f5f4', borderLeftColor: "#D0373b" }]}>
+          <View style={[styles.summaryBox, { backgroundColor: '#f9f5f4', borderLeftColor: "#af0c0c" }]}>
             <Text style={styles.summaryText}>Absent</Text>
             <Text style={styles.summaryNumber}>{totalAbsent}</Text>
           </View>
-          <View style={[styles.summaryBox, { backgroundColor: "#Fbf8f1", borderLeftColor: "#Ffd25d" }]}>
+          <View style={[styles.summaryBox, { backgroundColor: "#Fbf8f1", borderLeftColor: "#c47d01" }]}>
             <Text style={styles.summaryText}>OT</Text>
             <Text style={styles.summaryNumber}>{totalOt}</Text>
           </View>
-          {/* <View style={[styles.summaryBox, { backgroundColor: "#Faf5fb", borderLeftColor: "#D875db" }]}>
-            <Text style={styles.summaryText}>Leave</Text>
-            <Text style={styles.summaryNumber}></Text>
-          </View> */}
+          <View style={[styles.summaryBox, { backgroundColor: "#Faf5fb", borderLeftColor: "#D875db" }]}>
+            <Text style={styles.summaryText}>Total</Text>
+            <Text style={styles.summaryNumber}>{totalPresent + totalOt}</Text>
+          </View>
         </View>
 
         <Modal
@@ -375,7 +412,7 @@ const AttendanceDetails = () => {
   );
 };
 
-export default AttendanceDetails;
+export default MyAttendance;
 
 const styles = StyleSheet.create({
   container: {
@@ -433,12 +470,14 @@ const styles = StyleSheet.create({
     color: "#184562"
   },
   circle: {
-    width: 35,
+    minWidth: 35,
     height: 35,
     borderColor: "grey",
+    borderWidth: 1,
     borderRadius: 5,
-    backgroundColor: "#3ace78",
+    // backgroundColor: "#3ace78",
     justifyContent: "center",
+    padding: 2,
     // marginLeft: 10,
   },
   text: {
@@ -497,17 +536,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     marginVertical: 10,
+    marginHorizontal: 10
   },
   summaryBox: {
     alignItems: "center",
     backgroundColor: "#F5faf6",
     padding: 10,
     borderLeftWidth: 2,
-    width:'28%'
+    width: '28%'
   },
   summaryText: {
     fontSize: 16,
-    color: "#888",
+    color: "#00456e",
   },
   summaryNumber: {
     fontSize: 20,
@@ -557,9 +597,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  loadingContainer:{
-    flex:1,
-    justifyContent:'center',
-    alignItems:'center'
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
   }
 });

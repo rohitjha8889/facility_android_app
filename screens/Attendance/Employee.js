@@ -8,17 +8,21 @@ import {
   Image,
   ScrollView,
   Alert,
+  Modal,
+  TouchableWithoutFeedback,
+  ActivityIndicator
 } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import SelectDropdown from "react-native-select-dropdown";
-import { DataContext } from "../Data/DataContext";
+import { DataContext } from "../../Data/DataContext";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import AntDesign from 'react-native-vector-icons/AntDesign';
 
 const Employee = ({ route }) => {
-  const { fetchEmployees, employees, allClient, addAttendance, fetchFilteredAttendance, attendanceData } = useContext(DataContext);
+  const { fetchEmployees, employees, allClient, addAttendance, fetchFilteredAttendance, attendanceData, IP_Address } = useContext(DataContext);
 
   const { selectedClient, selectedDesignation } = route.params;
 
@@ -33,7 +37,7 @@ const Employee = ({ route }) => {
     return `${day}.${month}.${year}`;
   };
 
-  
+
   const navigation = useNavigation();
   const [searchInput, setSearchInput] = useState("");
   const dropdownRefs = useRef([]);
@@ -43,6 +47,8 @@ const Employee = ({ route }) => {
   const [permissionOT, setPermissionOT] = useState('');
   const [adminId, setAdminId] = useState('');
   const [loading, setLoading] = useState(true);
+  const [productAddModal, setProductAddModal] = useState(false);
+  const [hideOT, setHideOT] = useState(true)
 
 
   useEffect(() => {
@@ -82,7 +88,7 @@ const Employee = ({ route }) => {
   };
 
   const AddStaff = () => {
-    navigation.navigate("AddStaff", {selectedClient, selectedDesignation});
+    navigation.navigate("AddStaff", { selectedClient, selectedDesignation });
   };
 
   const getEmployeeData = async () => {
@@ -102,6 +108,9 @@ const Employee = ({ route }) => {
   useEffect(() => {
     getEmployeeData();
   }, []);
+
+
+
 
   const updateSelectedItem = (cardId, item) => {
     const updatedCardData = cardData.map((card) =>
@@ -123,11 +132,11 @@ const Employee = ({ route }) => {
 
   const handleAttendance = (employeeId) => {
     // console.log(id)
-    navigation.navigate("AttendanceDetails", {employeeId});
+    navigation.navigate("AttendanceDetails", { employeeId });
   };
 
   useEffect(() => {
-    
+
     const updatedCardData = cardData.map((card) => {
       const attendanceRecord = attendanceData && attendanceData.find((record) => record.employeeId === card._id && formatDate(selectedDate) === record.checkInTime);
       if (attendanceRecord) {
@@ -149,23 +158,34 @@ const Employee = ({ route }) => {
     });
     setCardData(updatedCardData);
   }, [attendanceData, selectedDate]);
-  
-  
+
+
 
   const handleSave = (cardId) => {
     const card = cardData.find((card) => card._id === cardId);
 
+    // Check if selectedItem is null or undefined
+    if (!card.selectedItem || !card.selectedItem.title) {
+      Alert.alert('Please select an attendance value', 'Attendance value must be selected before saving.');
+      return;
+    }
+
     const data = {
       employeeId: cardId,
-      attendanceStatus: card.selectedItem?.title,
+      attendanceStatus: card.selectedItem.title,
       overTime: card.selectedItemValue || '',
       checkInTime: formatDate(selectedDate),
       madeBy: adminId,
     };
 
+    setProductAddModal(true);
+
     // console.log(data);
     addAttendance(data);
-    
+
+    setTimeout(() => {
+      setProductAddModal(false);
+    }, 900);
 
     const updatedCardData = cardData.map((card) =>
       card._id === cardId ? { ...card, isSaved: true } : card
@@ -185,11 +205,18 @@ const Employee = ({ route }) => {
     }
   };
 
+  const closeAddToCartModel = () => {
+    setProductAddModal(false)
+  }
 
-  
 
   return (
     <View style={styles.container}>
+
+{loading ? (
+        <ActivityIndicator size="large" color="#184562" style={{ marginTop: 20, flex:1, justifyContent:'center', alignItems:'center' }} />
+      ) : (
+        <>
       <View style={styles.header}>
         <View style={styles.mainheader}>
           <TouchableOpacity onPress={handleBack}>
@@ -244,7 +271,12 @@ const Employee = ({ route }) => {
         scrollEventThrottle={16}
       >
         <View style={styles.allCard}>
-          {filteredCardData.map((card) => (
+          {filteredCardData.map((card) => {
+
+            const profileImage = `${IP_Address}/profileImage/${card.profileImage}`
+            const defaultImageUrl = `${IP_Address}/profileImage/dummy.jpg`
+            return(
+            
             <View
               style={[
                 styles.allCardItem
@@ -252,11 +284,11 @@ const Employee = ({ route }) => {
               key={card._id}
             >
               <TouchableOpacity style={[styles.card,
-                card.isSaved ? styles.savedCardItem : null,]} onPress={() =>handleAttendance(card._id)} activeOpacity={1}>
+              card.isSaved ? styles.savedCardItem : null,]} onPress={() => handleAttendance(card._id)} activeOpacity={1}>
                 <View style={styles.cardItems}>
                   <Image
                     style={styles.profileImage}
-                    source={require("../images/profileImages.png")}
+                    source={card.profileImage && card.profileImage.trim() !== '' ? { uri: profileImage } : { uri: defaultImageUrl }}
                   />
                   <Text style={styles.cardText}>{card.employeeName}</Text>
                 </View>
@@ -265,67 +297,97 @@ const Employee = ({ route }) => {
                 </Text>
               </TouchableOpacity>
               <View style={styles.attendanceDropDown}>
-                <View style={styles.attendance}>
-                  <SelectDropdown
-                    ref={(ref) => (dropdownRefs.current[card._id] = ref)}
-                    data={[
-                      { title: "P/2" },
-                      { title: "P" },
-                      { title: "A" },
-                      { title: "P+P/2" },
-                      { title: "PP" },
-                      { title: "PP+P/2" },
-                      { title: "PPP" },
-                    ]}
-                    defaultButtonText={card.selectedItem?.title || "Select"}
-                    onSelect={(item) => updateSelectedItem(card._id, item)}
-                    renderButton={(selectedItem, isOpened) => (
-                      <View style={styles.dropdownButton}>
-                        <Text style={styles.dropdownButtonText}>
-                          {(selectedItem && selectedItem.title) || card.selectedItem?.title || "Select"}
-                        </Text>
-                        <FontAwesome
-                          name={isOpened ? "chevron-up" : "chevron-down"}
-                          style={styles.dropdownButtonArrow}
-                        />
-                      </View>
-                    )}
-                    renderItem={(item, index, isSelected) => (
-                      <View
-                        style={[
-                          styles.dropdownItem,
-                          isSelected && styles.selectedItem,
-                        ]}
-                      >
-                        <Text style={styles.dropdownItemText}>
-                          {item.title}
-                        </Text>
-                      </View>
-                    )}
-                    showsVerticalScrollIndicator={false}
-                    dropdownStyle={styles.dropdownMenu}
-                  />
-                  {permissionOT !== 'NO' && (
-                    <TextInput
-                      style={styles.AttendanceInput}
-                      placeholder="OT"
-                      keyboardType="numeric"
-                      value={(card.selectedItemValue !== null && card.selectedItemValue !== undefined) ? `${card.selectedItemValue}` : ''}
-                      onChangeText={(text) => updateSelectedItemValue(card._id, text)}
+                <View style={styles.attendanceDropDown}>
+                  <View style={styles.attendance}>
+                    <SelectDropdown
+                      ref={(ref) => (dropdownRefs.current[card._id] = ref)}
+                      data={[
+                        { title: "P/2" },
+                        { title: "P" },
+                        { title: "A" },
+                        { title: "P+P/2" },
+                        { title: "PP" },
+                        { title: "PP+P/2" },
+                        { title: "PPP" },
+                        { title: "T" },
+                      ]}
+                      defaultButtonText={card.selectedItem?.title || "Select"}
+                      onSelect={(item) => updateSelectedItem(card._id, item)}
+                      renderButton={(selectedItem, isOpened) => (
+                        <View style={styles.dropdownButton}>
+                          <Text style={styles.dropdownButtonText}>
+                            {(selectedItem && selectedItem.title) || card.selectedItem?.title || "Select"}
+                          </Text>
+                          <FontAwesome
+                            name={isOpened ? "chevron-up" : "chevron-down"}
+                            style={styles.dropdownButtonArrow}
+                          />
+                        </View>
+                      )}
+                      renderItem={(item, _index, isSelected) => (
+                        <View
+                          style={[
+                            styles.dropdownItem,
+                            isSelected && styles.selectedItem,
+                          ]}
+                        >
+                          <Text style={styles.dropdownItemText}>
+                            {item.title}
+                          </Text>
+                        </View>
+                      )}
+                      showsVerticalScrollIndicator={false}
+                      dropdownStyle={styles.dropdownMenu}
                     />
-                  )}
+                    {(permissionOT !== 'NO' && card.selectedItem?.title !== 'T' && card.selectedItem?.title !== 'A') && (
+                      <TextInput
+                        style={styles.AttendanceInput}
+                        placeholder="OT"
+                        keyboardType="numeric"
+                        value={(card.selectedItemValue !== null && card.selectedItemValue !== undefined) ? `${card.selectedItemValue}` : ''}
+                        onChangeText={(text) => updateSelectedItemValue(card._id, text)}
+                      />
+                    )}
+                  </View>
                 </View>
                 <TouchableOpacity
-                  style={styles.button}
+                  style={[
+                    styles.button,
+                    // card.isSaved ? styles.disabledSaveButton : null,
+                  ]}
                   onPress={() => handleSave(card._id)}
+                  disabled={card.isSaved}
                 >
-                  <Text style={styles.buttonText}>SAVE</Text>
+                  <Text style={styles.buttonText}>
+                    {card.isSaved ? "Saved" : "Save"}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
-          ))}
+          )
+        }
+        )}
         </View>
       </ScrollView>
+
+
+      <Modal
+        transparent={true}
+        visible={productAddModal}
+        onRequestClose={closeAddToCartModel}
+      >
+        <TouchableWithoutFeedback >
+          <View style={styles.modalAddToCartBackground}>
+            <View style={styles.modalAddToCartContainer}>
+              <AntDesign name='check' size={40} color='#fff' />
+              <Text style={styles.cartAddedText}>Saved</Text>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      </>
+      )}
     </View>
   );
 };
@@ -517,6 +579,9 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: 75,
+    // borderWidth:1,
+    paddingHorizontal:10,
+    paddingVertical:2,
     borderColor: "#184562",
   },
   buttonText: {
@@ -524,5 +589,30 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "bold",
     textAlign: "center",
+  },
+
+
+
+  // Cart Modal
+  modalAddToCartBackground: {
+    flex: 1,
+    justifyContent: "center",
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+
+  modalAddToCartContainer: {
+    backgroundColor: '#000',
+    padding: 20,
+    borderRadius: 20,
+    // borderTopRightRadius: 20,
+    height: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 200
+  },
+  cartAddedText: {
+    color: '#fff'
   },
 });

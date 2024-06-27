@@ -16,7 +16,7 @@ import AddStaff from "./AddStaff";
 import AttendanceDetails from "./AttendanceDetails";
 const Stack = createStackNavigator();
 import FontAwesome from "react-native-vector-icons/FontAwesome";
-import { DataContext } from "../Data/DataContext";
+import { DataContext } from "../../Data/DataContext";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Organization = () => {
@@ -63,7 +63,7 @@ const Organization = () => {
   };
 
   const handleButtonPressBack = () => {
-    navigation.navigate("DashboardScreen");
+    navigation.goBack();
   };
 
   const handleSelectClient = (selectedHospital) => {
@@ -102,13 +102,13 @@ const Organization = () => {
   };
 
   const handleBack = () => {
-    navigation.navigate("DashboardHome");
+    navigation.navigate("Home");
   };
 
   return (
     <View style={styles.dropdownCointainer}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack}>
+        <TouchableOpacity onPress={handleButtonPressBack}>
           <FontAwesome
             name="chevron-left"
             size={18}
@@ -134,8 +134,8 @@ const Organization = () => {
           <Image
             source={
               isClientClicked
-                ? require("../images/upload.png")
-                : require("../images/dropdown.png")
+                ? require("../../images/upload.png")
+                : require("../../images/dropdown.png")
             }
             style={styles.icon}
           />
@@ -149,6 +149,8 @@ const Organization = () => {
               value={searchInputClient}
               onChangeText={(text) => setSearchInputClient(text)}
             />
+
+            
             <FlatList
               data={Array.from(new Set(allClient.map(item => item.hospitalName))) // Get unique hospital names
                 .filter(hospitalName =>
@@ -182,14 +184,15 @@ const Organization = () => {
         <Image
           source={
             isDesignationClicked
-              ? require("../images/upload.png")
-              : require("../images/dropdown.png")
+              ? require("../../images/upload.png")
+              : require("../../images/dropdown.png")
           }
           style={styles.icon}
         />
       </TouchableOpacity>
 
       {isDesignationClicked && (
+        
         <View style={styles.dropdownArea1}>
           <TextInput
             placeholder="Search"
@@ -291,7 +294,7 @@ const styles = StyleSheet.create({
   },
   dropdownArea: {
     width: "90%",
-    height: 300,
+    maxHeight: 600,
     borderRadius: 10,
     marginTop: 20,
     backgroundColor: "#fff",
@@ -303,14 +306,14 @@ const styles = StyleSheet.create({
   },
   dropdownArea1: {
     width: "90%",
-    height: 300,
+    maxHeight: 300,
     borderRadius: 10,
     marginTop: 20,
     backgroundColor: "#fff",
     elevation: 5,
     alignSelf: "center",
     position: "absolute",
-    top: 280,
+    top: 250,
     zIndex: 1,
   },
   searchInput: {

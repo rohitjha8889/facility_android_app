@@ -5,9 +5,50 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DataContextProvider = ({ children }) => {
 
-  // const IP_Address = 'http://192.168.1.3:5001';
+  // const IP_Address = 'http://192.168.1.13:5001';
   const IP_Address = 'https://apifacility.metrolite.co.in';
   const [userDetail, setUserDetail] = useState()
+  const [slider, setSlider] = useState([]);
+
+  useEffect(()=>{
+    fetchSlider()
+    fetchData()
+  },[])
+
+
+
+  const fetchSlider = async () => {
+    try {
+      // Fetch data from API
+      const response = await fetch(`${IP_Address}/poster/allposter`);
+      const jsonData = await response.json();
+
+
+      setSlider(jsonData.reverse());
+
+
+
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+  };
+
+
+  const fetchLatestVersion = async () => {
+    try {
+      const response = await fetch(`${IP_Address}/app/latestversion`);
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const data = await response.json();
+      return data.latestVersion;
+    } catch (error) {
+      console.error('There was a problem with the fetch operation:', error);
+      return null;
+    }
+  };
 
 
   const fetchData = async () => {
@@ -103,7 +144,7 @@ const DataContextProvider = ({ children }) => {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
       const jsonData = await response.json();
-      setEmployees(jsonData);
+      setEmployees(jsonData.reverse());
     } catch (error) {
       console.error('Failed to fetch employees:', error);
     }
@@ -113,10 +154,7 @@ const DataContextProvider = ({ children }) => {
   const handleSaveEmployee = async (formData) => {
     try {
       
-      // const hospital = formData.get('hospitalName');
-      // const service = formData.get('service')
-
-      // console.log(hospital, service)
+     
       const response = await fetch(`${IP_Address}/employee/addemployees`, {
         method: "POST",
         body: formData,
@@ -128,7 +166,7 @@ const DataContextProvider = ({ children }) => {
       if (response.ok) {
         const data = await response.json();
         // console.log("Employee added successfully:", data);
-        
+        fetchEmployees(data.hospitalName, data.service)
         return { success: true, data };
       } else {
         const errorData = await response.json();
@@ -247,6 +285,8 @@ const DataContextProvider = ({ children }) => {
       fetchData,
       userDetail,
 
+      slider,
+
 
       // Organization and Service
       services,
@@ -266,7 +306,8 @@ const DataContextProvider = ({ children }) => {
 
 
       fetchAttendanceData,
-      employeeAttendance
+      employeeAttendance,
+      fetchLatestVersion
 
 
     }}>
